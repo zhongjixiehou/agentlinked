@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>指数杠杆ETF换算</title>
+<style>
+:root{
+  --bg:#0a1120; --bg2:#0d1628; --card:#111d33; --card2:#0f1a2e; --line:#2a3a56; --line-soft:#1e2c46;
+  --text:#eef2f8; --muted:#9db0cc; --faint:#6b7f9e;
+  --gold:#d9b36a; --gold-soft:#b8934a; --gold-bg:rgba(217,179,106,.12);
+  --up:#e5484d; --down:#2fbf71; /* A股习惯：涨红跌绿，贴合中文用户 */
+  --up-bg:rgba(229,72,77,.12); --down-bg:rgba(47,191,113,.12);
+  --input-bg:#0a1424; --radius:14px;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  --num:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#f2efe8; --bg2:#ece8de; --card:#ffffff; --card2:#faf8f3; --line:#ddd5c3; --line-soft:#e8e2d2;
+    --text:#16233c; --muted:#5b6a84; --faint:#8a97ad;
+    --gold:#a07c2c; --gold-soft:#8a6a22; --gold-bg:rgba(160,124,44,.10);
+    --input-bg:#fbf9f4;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.5}
+.wrap{max-width:880px;margin:0 auto;padding:20px 16px 56px}
+h1{font-size:clamp(26px,6vw,38px);margin:6px 0 8px;letter-spacing:.02em;font-weight:800}
+.lede{color:var(--muted);font-size:15px;margin:0 0 6px;max-width:640px}
+.lede b{color:var(--gold);font-weight:600}
+.note-line{color:var(--faint);font-size:13px;margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin:0 0 16px}
+.card h2{font-size:16px;margin:0 0 4px;font-weight:700}
+.card .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+.label{font-size:13px;color:var(--muted);margin:0 0 8px}
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{appearance:none;border:1px solid var(--line);background:var(--card2);color:var(--text);border-radius:10px;padding:8px 14px;font-size:14px;font-family:var(--font);cursor:pointer;min-height:40px}
+.chip .lev{color:var(--muted);font-size:12px;margin-left:5px}
+.chip[aria-pressed="true"]{border-color:var(--gold);color:var(--gold);background:var(--gold-bg)}
+.chip[aria-pressed="true"] .lev{color:var(--gold)}
+.chip:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+/* base prices */
+.base-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.base-item{background:var(--card2);border:1px solid var(--line-soft);border-radius:12px;padding:10px 12px}
+.base-item .sym{font-weight:700;font-size:14px}
+.base-item .sym span{color:var(--faint);font-weight:400;font-size:11px;margin-left:4px}
+.base-item .row{display:flex;align-items:center;gap:4px;margin-top:4px}
+.base-item .row em{font-style:normal;color:var(--faint);font-size:14px}
+.base-item input{width:100%;min-width:0;background:transparent;border:none;border-bottom:1px solid var(--line);color:var(--text);font-family:var(--num);font-size:17px;padding:2px 0 4px}
+.base-item input:focus{border-bottom-color:var(--gold);outline:none}
+.base-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.btn{appearance:none;border:1px solid var(--line);background:var(--card2);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;cursor:pointer;min-height:38px;font-family:var(--font)}
+.btn.gold{border-color:var(--gold-soft);color:var(--gold)}
+.btn[disabled]{opacity:.55;cursor:wait}
+/* date fetch */
+.fetch-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+.fetch-row label{font-size:13px;color:var(--muted)}
+.fetch-row input[type="date"]{background:var(--input-bg);border:1px solid var(--line);border-radius:10px;color:var(--text);font-size:15px;padding:9px 12px;min-height:42px;font-family:var(--num);color-scheme:light dark}
+.fetch-status{font-size:13px;color:var(--muted);margin:0 0 12px;min-height:1.4em}
+.fetch-status.ok{color:var(--gold)}
+.fetch-status.err{color:var(--up)}
+/* converter */
+.conv-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.big-input{display:flex;align-items:baseline;gap:8px;border-bottom:2px solid var(--gold-soft);padding:6px 0 10px;margin:4px 0 2px}
+.big-input .cur{color:var(--gold);font-size:26px;font-weight:600}
+.big-input input{flex:1;min-width:0;background:transparent;border:none;color:var(--text);font-family:var(--num);font-size:clamp(28px,7vw,38px);font-weight:600;padding:0}
+.big-input input:focus{outline:none}
+.big-input input::placeholder{color:var(--faint);font-size:.62em;font-family:var(--font);font-weight:400}
+.pct-row{display:flex;align-items:center;gap:10px;margin:14px 0 4px;flex-wrap:wrap}
+.pct-row input{width:130px;background:var(--input-bg);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:var(--num);font-size:20px;padding:10px 12px;min-height:48px}
+.pct-row .unit{color:var(--muted);font-size:15px}
+.quick{display:flex;gap:6px;flex-wrap:wrap}
+.quick button{appearance:none;border:1px solid var(--line);background:var(--card2);color:var(--muted);border-radius:999px;padding:6px 11px;font-size:12.5px;cursor:pointer;font-family:var(--num);min-height:34px}
+.quick button:hover{color:var(--gold);border-color:var(--gold-soft)}
+.swap-wrap{display:flex;justify-content:center;margin:10px 0}
+.swap{width:48px;height:48px;border-radius:50%;border:1px solid var(--gold-soft);background:var(--gold-bg);color:var(--gold);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.result-list{display:grid;gap:10px;margin-top:6px}
+.result{background:var(--card2);border:1px solid var(--line-soft);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:baseline}
+.result .rsym{font-weight:700;font-size:16px}
+.result .rsym .tag{display:inline-block;border:1px solid var(--gold-soft);color:var(--gold);border-radius:6px;font-size:11px;padding:1px 7px;margin-left:8px;font-weight:500;vertical-align:2px}
+.result .rprice{font-family:var(--num);font-size:22px;font-weight:600;text-align:right}
+.result .rmeta{grid-column:1/-1;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--num);font-size:13px;color:var(--muted)}
+.result .rmeta b{font-weight:600}
+.up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--muted)}
+.hint{font-size:12.5px;color:var(--faint);margin:10px 0 0}
+/* tables */
+.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:8px 10px;text-align:right;font-family:var(--num);white-space:nowrap;border-bottom:1px solid var(--line-soft)}
+@media(max-width:480px){ table{font-size:12px} th,td{padding:7px 5px} th{font-size:11px} }
+th{font-family:var(--font);color:var(--muted);font-weight:600;font-size:12.5px}
+th:first-child,td:first-child{text-align:left}
+tbody tr:last-child td{border-bottom:none}
+td .d{display:block;font-size:11.5px;color:var(--faint)}
+td .d.up,td .d.down{color:inherit;opacity:.85}
+/* two-col tools */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}.base-grid{grid-template-columns:repeat(2,1fr)}}
+.tool-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.tool-row select,.tool-row input{background:var(--input-bg);border:1px solid var(--line);border-radius:10px;color:var(--text);font-size:15px;padding:10px 12px;min-height:46px;font-family:var(--font)}
+.tool-row input{font-family:var(--num);width:130px}
+.tool-out{font-family:var(--num);font-size:15px;background:var(--card2);border:1px dashed var(--line);border-radius:10px;padding:12px 14px;min-height:48px}
+.tool-out b{color:var(--gold);font-weight:600}
+.formula{font-family:var(--num);font-size:13.5px;background:var(--card2);border:1px solid var(--line-soft);border-radius:10px;padding:10px 14px;margin:0 0 8px;white-space:normal;overflow-wrap:anywhere}
+.formula span{color:var(--gold)}
+.warn{border:1px solid var(--gold-soft);background:var(--gold-bg);border-radius:12px;padding:12px 14px;font-size:13.5px}
+.warn b{color:var(--gold)}
+footer{color:var(--faint);font-size:12.5px;margin-top:8px}
+.empty{color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>指数 / 杠杆 ETF 换算</h1>
+  <p class="lede">按倍数公式即时换算，输入即出结果，无需回车。点中间的 ⇅ 可反向：输入杠杆产品的目标价，反推标的。下方还有「六标的联动」：输入一个 SPX 目标点位，用历史 Beta 估算 QQQ 一组——那是统计估算、不是公式换算，页面会明确标注并给出误差区间。</p>
+  <p class="note-line">默认基准价为 2026-11-05 收盘价，可直接修改；也可以在下方<b>选任意日期点「抓取」</b>，页面联网取该日的真实收盘价（非交易日自动取最近一个交易日；数据源 Nasdaq / Yahoo，抓不到会明确提示、基准价保持不变、绝不填假数）。本页不接实时行情。盘中换算时基准价<b>保持昨收不变</b>，直接输入标的的目标价即可——公式里的涨跌幅始终按昨收算。<b>不要</b>把基准价改成盘中最新价再套倍数：产品日内已经涨过之后，有效倍数会下降（如 TQQQ 当日已涨 6% 后，对后续涨跌的有效倍数只剩约 2.8 倍，不是 3 倍），那样算会高估。</p>
+
+  <!-- 基准价 -->
+  <section class="card" aria-labelledby="baseH">
+    <div class="conv-head">
+      <h2 id="baseH">基准价（可编辑）</h2>
+      <div class="base-actions" style="margin-top:0">
+        <button class="btn gold" id="resetBase" type="button">恢复 11-05 收盘价</button>
+      </div>
+    </div>
+    <p class="sub">改任意一个价格，下面的换算、情景表、仓位计算会立刻跟着重算。默认七个价格均为 2026-11-05 收盘价（含 SQQQ $49.55、NDX 26,629.81）；选日期抓取后，整组换成该日收盘价。NDX 是纳指100指数点位，TQQQ / SQQQ 的正式基准。</p>
+    <div class="fetch-row">
+      <label for="datePick">按日期取收盘价</label>
+      <input type="date" id="datePick" value="2026-11-05" min="2015-01-01" aria-label="选择日期">
+      <button class="btn gold" id="fetchBtn" type="button">抓取该日收盘价</button>
+    </div>
+    <p class="fetch-status" id="fetchStatus" role="status">选好日期点「抓取该日收盘价」，七个基准价会换成那天的收盘价（需联网）。</p>
+    <div class="base-grid" id="baseGrid"></div>
+  </section>
+
+  <!-- 换算器 -->
+  <section class="card" aria-labelledby="convH">
+    <h2 id="convH" style="position:absolute;left:-9999px">换算器</h2>
+
+    <p class="label">指数分组</p>
+    <div class="chips" id="groupChips" role="group" aria-label="指数分组">
+      <button class="chip" type="button" data-group="spx" aria-pressed="true">标普 500<span class="lev">SPX · SPY · SPYU</span></button>
+      <button class="chip" type="button" data-group="ndx" aria-pressed="false">纳指 100<span class="lev">QQQ · TQQQ · SQQQ</span></button>
+    </div>
+
+    <div id="ndxModeRow" hidden>
+      <p class="label" style="margin-top:16px">纳指口径</p>
+      <div class="chips" role="group" aria-label="纳指口径">
+        <button class="chip" type="button" id="modeQqq" aria-pressed="true">QQQ 快速换算<span class="lev">以 QQQ 市价为标的</span></button>
+        <button class="chip" type="button" id="modeNdx" aria-pressed="false">NDX 精算<span class="lev">以纳指100指数为标的</span></button>
+      </div>
+      <p class="hint">TQQQ / SQQQ 的正式基准是纳斯达克100指数（NDX），不是 QQQ 的市价。例：2026-11-05，QQQ 跌 6.49%、NDX 跌 6.36%——按 QQQ 算 TQQQ 理论 −19.47%，按 NDX 算 −19.07%，实际 −18.91%，NDX 口径更接近。快速模式把 QQQ 当近似标的，省事但多一层误差；精算模式直接输 NDX 目标点位。</p>
+    </div>
+
+    <p class="label" style="margin-top:16px">对应产品（点选切换换算方向的下方产品）</p>
+    <div class="chips" id="prodChips" role="group" aria-label="对应产品"></div>
+
+    <div style="margin-top:20px">
+      <div class="conv-head">
+        <div style="font-size:19px;font-weight:700"><span id="fromSym">SPX</span> <span style="color:var(--faint);font-weight:400">·</span> <span id="fromTag" style="font-size:13px;color:var(--gold);border:1px solid var(--gold-soft);border-radius:6px;padding:2px 8px;vertical-align:2px">指数</span></div>
+        <div style="color:var(--muted);font-size:13px" id="fromKind">目标价格 · USD</div>
+      </div>
+      <div class="big-input">
+        <span class="cur" id="fromCur">$</span>
+        <input id="priceInput" type="number" inputmode="decimal" step="any" placeholder="输入价格" aria-label="输入价格">
+      </div>
+      <div class="pct-row">
+        <span style="color:var(--muted);font-size:14px">或直接输标的涨跌幅</span>
+        <input id="pctInput" type="number" inputmode="decimal" step="any" placeholder="如 2 或 -3" aria-label="标的当日涨跌幅百分比">
+        <span class="unit">%</span>
+      </div>
+      <div class="quick" id="quickPct" aria-label="快捷涨跌幅"></div>
+    </div>
+
+    <div class="swap-wrap">
+      <button class="swap" id="swapBtn" type="button" aria-label="反向切换：在标的与所选产品之间交换输入方向" title="反向切换">⇅</button>
+    </div>
+
+    <div>
+      <div class="conv-head">
+        <div style="font-size:19px;font-weight:700"><span id="toSym">SPYU</span> <span style="color:var(--faint);font-weight:400">·</span> <span id="toTag" style="font-size:13px;color:var(--gold);border:1px solid var(--gold-soft);border-radius:6px;padding:2px 8px;vertical-align:2px">4 倍做多</span></div>
+        <div style="color:var(--muted);font-size:13px">预估价格 · USD</div>
+      </div>
+      <div class="result-list" id="resultList"></div>
+      <p class="hint" id="convHint"></p>
+    </div>
+  </section>
+
+  <!-- 六标的联动 -->
+  <section class="card" aria-labelledby="linkH">
+    <h2 id="linkH">六标的联动：SPX 目标 → 全部预估</h2>
+    <p class="sub">输入一个 SPX 目标点位，一次看齐六个标的。SPY / SPYU 是<b>倍数公式换算</b>（确定性计算）；QQQ / TQQQ / SQQQ 先用历史加权 Beta 由 SPX 涨跌估算 NDX 涨跌（r<sub>NDX</sub> = β × r<sub>SPX</sub>，QQQ 以 NDX 涨跌为代理），再套同一套倍数公式——属于<b>单交易日统计估算、不是确定价格、不是精确实时报价</b>，每行附 ±1σ 历史误差区间。SPYU 的正式基准是 SPXT（标普500全收益指数），此处以 SPX 为代理；TQQQ / SQQQ 的正式基准是 NDX。</p>
+    <p class="fetch-status" id="linkFresh" role="status"></p>
+    <div class="tool-row">
+      <span style="color:var(--muted)">SPX 目标点位</span>
+      <input id="linkSpx" type="number" inputmode="decimal" step="any" aria-label="SPX 目标点位">
+      <span style="color:var(--muted);font-size:13px" id="linkRet"></span>
+    </div>
+    <div class="tool-row" role="group" aria-label="Beta 窗口">
+      <span style="color:var(--muted);font-size:13px">Beta 窗口</span>
+      <button class="chip" type="button" id="beta20" aria-pressed="false">近 20 日</button>
+      <button class="chip" type="button" id="beta60" aria-pressed="true">近 60 日</button>
+      <span style="color:var(--muted);font-size:13px" id="betaInfo"></span>
+    </div>
+    <div class="result-list" id="linkList"></div>
+    <p class="hint">β 由页面内置函数 calculateWeightedBeta 实时计算：取 SPX 与 NDX <b>同一交易日</b>的指数收盘价（Yahoo Finance 日收盘，内置序列截至 2026-11-05），用最近窗口内的日收益率做加权回归（权重按 0.97 指数衰减、最近日期权重最高），β = 加权协方差(NDX 收益, SPX 收益) ÷ SPX 收益加权方差。在上方按日期抓取基准价时，会同步尝试抓取 SPX / NDX 历史序列并按所选日期重算 β；抓不到历史序列时保留原 β 并注明。样本不足（窗口内少于所需组数）或 SPX 收益方差为零时，联动模块<b>不输出</b>纳指组预测。±1σ 区间约覆盖历史 68% 的情形；极端行情下两指数相关性会变，估算可能明显偏离。本模块只做<b>单日</b>近似：多日预测必须另用逐日路径模型逐日滚动，不得用单日倍数公式直接推未来数周价格。</p>
+  </section>
+
+  <!-- 情景表 -->
+  <section class="card" aria-labelledby="scenH">
+    <h2 id="scenH">情景速查表</h2>
+    <p class="sub">标的当日涨跌 ±1%～±5% 时，各产品的预估价与涨跌额（SPX 一列为点数，其余为每股 $）。随基准价自动更新。纳指组表格按 QQQ 口径快速换算；TQQQ / SQQQ 的正式基准是 NDX，精算请在上方换算器切到「NDX 精算」。</p>
+    <p class="label">标普 500 组</p>
+    <div class="tbl-scroll"><table id="tblSpx" aria-label="标普500情景表"></table></div>
+    <p class="label" style="margin-top:16px">纳指 100 组</p>
+    <div class="tbl-scroll"><table id="tblNdx" aria-label="纳指100情景表"></table></div>
+  </section>
+
+  <!-- 反查 + 仓位 -->
+  <div class="grid2">
+    <section class="card" aria-labelledby="revH">
+      <h2 id="revH">反查：产品涨跌 → 标的涨跌</h2>
+      <p class="sub">公式：标的涨跌 = 产品涨跌 ÷ 倍数（SQQQ 带负号，方向相反）。</p>
+      <div class="tool-row">
+        <select id="revSym" aria-label="选择产品"></select>
+        <input id="revPct" type="number" inputmode="decimal" step="any" placeholder="产品涨跌 %" aria-label="产品涨跌百分比">
+        <span class="unit" style="color:var(--muted)">%</span>
+      </div>
+      <div class="tool-out" id="revOut"><span class="empty">输入产品涨跌幅后显示</span></div>
+    </section>
+
+    <section class="card" aria-labelledby="posH">
+      <h2 id="posH">仓位换算：目标敞口 → 要投多少</h2>
+      <p class="sub">公式：投入 = 目标敞口 ÷ 倍数；每股敞口 = 倍数 × 股价。</p>
+      <div class="tool-row">
+        <span style="color:var(--muted)">目标敞口 $</span>
+        <input id="posAmt" type="number" inputmode="decimal" step="any" value="10000" aria-label="目标敞口金额">
+      </div>
+      <div class="tool-out" id="posOut"></div>
+    </section>
+  </div>
+
+  <!-- 公式与注意 -->
+  <section class="card" aria-labelledby="fH">
+    <h2 id="fH">公式</h2>
+    <p class="sub">R = 当日涨跌幅，L = 倍数，P = 价格。</p>
+    <p class="formula">产品涨跌 = <span>L × R</span>　·　反查：R = 产品涨跌 ÷ L</p>
+    <p class="formula">每股涨跌 $ = <span>P × L × R</span>　·　预估价 = P × (1 + L × R)</p>
+    <p class="formula">SPX 点数变化 = <span>SPX × R</span>　·　SPY 与 SPX 的比值近三个月在 10.015–10.044 之间，SPY 实际比 SPX ÷ 10 低约 0.3%——那是分红与费用累积的真实折价，不是价格取错；本页两者各用独立基准价，不互相推导</p>
+    <p class="formula">投入 = 敞口 ÷ |L|　·　每股敞口 = <span>L × P</span>（SPYU 每股 ≈ $109.20；SQQQ 每股 ≈ −$148.65，负号 = 做空方向）</p>
+    <p class="formula">多日收益 = <span>Π(1 + L × rᵢ) − 1</span>，逐日复利，不能用 L × 多日涨跌</p>
+    <p class="formula">正式基准：TQQQ / SQQQ 跟踪 <span>NDX</span>（纳斯达克100指数）的每日 ±3 倍，QQQ 只是近似代理；SPYU 跟踪 <span>SPXT</span>（标普500全收益指数）的每日 4 倍</p>
+    <p class="formula">联动估算（统一计算函数，正向 / 反向 / 情景表共用）：r = 目标 SPX ÷ 基准 SPX − 1；r<sub>NDX</sub> = <span>β × r</span>；SPY = 基准 ×(1+r)、SPYU = 基准 ×(1+4r)、QQQ = 基准 ×(1+r<sub>NDX</sub>)、TQQQ = 基准 ×(1+3r<sub>NDX</sub>)、SQQQ = 基准 ×(1−3r<sub>NDX</sub>)。β 为 SPX→NDX 历史加权回归（衰减 0.97），数值、样本数与 R² 见联动卡；这是统计关系，不是换算公式</p>
+    <div class="warn" style="margin-top:12px">
+      <b>注意：</b>杠杆倍数只对<b>当日</b>有效、每日收盘后重置。隔夜和多日持有不等于倍数 × 多日涨跌，震荡市会有波动磨损（volatility decay），实际结果还会受费用与日内路径影响。SPYU 是 BMO 发行的 <b>ETN</b>（非 ETF，带发行人信用风险；其每日扣减不止一项费率，见下方成本拆解）；SPX 是指数本身、不能直接买卖。本页为换算工具，不构成投资建议。
+    </div>
+    <h2 style="margin-top:18px">SPYU 成本拆解（BMO 定价文件口径）</h2>
+    <p class="sub">不能只看一个费率：BMO 定价文件规定，除费用部分外，还按 3 倍融资部分每日计融资成本。三块要分开看——</p>
+    <p class="formula">费用部分 <span>0.95%</span>/年　·　融资加点 <span>2.00%</span>（初始值，发行人可调整）　·　融资基准利率 = 银行优惠贷款利率，最新可核实 <span>7.00%</span></p>
+    <p class="formula">年化总扣减（按上述利率假设）= 0.95% + 3 × (7.00% + 2.00%) = <span>27.95%</span>，约合每自然日 0.077%、一周约 0.54%</p>
+    <p class="hint" style="margin-top:2px">27.95% 是在「优惠利率 7.00%、融资加点维持初始 2.00%」假设下算出的费用＋融资总扣减率，<b>不是基金公布的管理费率</b>；基准利率或加点一变，实际扣减随之变化。它与回测里 SPYU 每天系统性跑输公式约 0.1% 的量级吻合（见下方历史验证）。</p>
+    <p class="hint" style="margin-top:2px">四种「价格 / 费用」不要混：① <b>投资者费用</b>（0.95%/年那部分，从指示价值中扣）；② <b>融资费用</b>（3 倍融资部分按基准利率＋加点每日计，见上）；③ <b>指示价值（indicative value）</b>——按公式扣费后的理论值，盘中由发行人发布；④ <b>实际市场价格</b>——交易所成交价，可相对指示价值溢价或折价。本页换算出的是按倍数公式的估算价，既不是指示价值、也不是实时成交价。</p>
+  </section>
+
+  <!-- 历史验证 -->
+  <section class="card" aria-labelledby="valH">
+    <h2 id="valH">历史验证（回测）</h2>
+    <p class="sub">数据：Yahoo Finance，2026-08-06 → 2026-11-05，共 65 个交易日、64 组隔日对照。用「昨日收盘价 × (1 + L × 标的当日涨跌)」预测产品收盘价，与实际收盘价比对。</p>
+    <p class="formula">单日公式预测误差（<span>分红调整后的总回报口径</span>，即用调整收盘价计算）：平均 <span>0.06%–0.14%</span>，最大 0.7%——公式本身成立，误差来自费用与跟踪偏差</p>
+    <p class="formula">口径说明：同一批数据若改用<span>原始收盘价口径</span>，最大单日误差是 1.4%（出现在 SQQQ 除息日，见末条）。0.7% 与 1.4% 不矛盾——前者已按总回报口径剔除分红跳空，后者没有；引用误差数字时必须带口径</p>
+    <p class="formula">统计排除条件：总回报口径的误差统计（平均 0.06%–0.14%、最大 0.7%）使用分红调整后收盘价，<span>除息日的原始价跳空不计入</span>该组统计、只在原始价口径下单列（即 1.4% 那笔）；无前一交易日收盘价可比对的样本（如长假后首日缺隔日配对）同样不计入 64 组对照</p>
+    <p class="formula">2026-11-05 当天：TQQQ 实际 <span>−18.91%</span>，按 QQQ（−6.49%）算 −19.47%，差 0.56 个百分点；按其正式基准 NDX（−6.36%）算 −19.07%，只差 0.16 个百分点——这就是换算器加 NDX 精算模式的原因</p>
+    <p class="formula">SPYU 每天系统性少约 <span>0.1%</span>（费用 + 3 倍融资部分的每日扣减，拆解见上方「SPYU 成本拆解」），一周累积约 0.5%——是真实磨损，不是公式错误</p>
+    <p class="formula">多日不能直接乘：20 天窗口里 SPYU 平均比「倍数 × 多日涨跌」少 <span>2.43</span> 个百分点；TQQQ 在 −1.5 ～ +3.3 个百分点之间不定；SQQQ 在震荡市反而能多赚，最多 +8.1 个百分点</p>
+    <p class="formula">除息日注意：原始收盘价在除息日会跳空。SQQQ 2026 年第三季度除息日为 <span>9 月 23 日</span>（ProShares 公布；本页此前误写 9-22，已更正）——该日前后原始价口径的单日误差达 1.4%，改用分红调整后的总回报口径则接近 0，属数据口径问题、非公式错误</p>
+  </section>
+
+  <footer>默认基准价：2026-11-05 收盘 — SPX 7,353.73 · SPY $733.00 · SPYU $27.30 · QQQ $647.05 · NDX 26,629.81 · TQQQ $50.47 · SQQQ $49.55。按日期抓取的数据来自 Nasdaq / Yahoo Finance 历史行情。全部为美股产品。</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+var DEFAULTS = { SPX:7353.73, SPY:733.00, SPYU:27.30, QQQ:647.05, NDX:26629.81, TQQQ:50.47, SQQQ:49.55 };
+var INSTR = {
+  SPX:  { L:1,  name:"标普500指数", tag:"指数",     group:"spx", isIndex:true },
+  SPY:  { L:1,  name:"标普500 ETF", tag:"1 倍",     group:"spx" },
+  SPYU: { L:4,  name:"标普500 4倍 ETN", tag:"4 倍做多", group:"spx" },
+  QQQ:  { L:1,  name:"纳指100 ETF", tag:"指数ETF",  group:"ndx" },
+  NDX:  { L:1,  name:"纳斯达克100指数", tag:"指数",   group:"ndx", isIndex:true },
+  TQQQ: { L:3,  name:"纳指 3倍做多", tag:"3 倍做多", group:"ndx" },
+  SQQQ: { L:-3, name:"纳指 3倍做空", tag:"3 倍做空", group:"ndx" }
+};
+var GROUPS = {
+  spx:{ underlying:"SPX", members:["SPX","SPY","SPYU"], products:["SPYU","SPY"] },
+  ndx:{ underlying:"QQQ", members:["QQQ","TQQQ","SQQQ"], products:["TQQQ","SQQQ"] }
+};
+var base = Object.assign({}, DEFAULTS);
+var state = {
+  group:"spx",
+  product:"SPYU",     // 当前选中的杠杆/对应产品
+  fromSym:"SPX",      // 输入端
+  toSym:"SPYU",       // 输出端（展示主结果，其余成员一并列出）
+  pct:null,           // 标的当日涨跌幅（小数），null = 未输入
+  ndxMode:"qqq",      // 纳指口径：qqq = QQQ 快速换算 / ndx = NDX 精算
+  linkWin:"d60",      // 联动 Beta 窗口
+  baseDate:"2026-11-05", // 当前基准价所属交易日
+  baseStale:false     // 基准价被手动改过、未与行情核对
+};
+function underlyingOf(g){ // 当前口径下该组的标的：纳指组精算模式为 NDX，其余为组默认
+  return (g==="ndx" && state.ndxMode==="ndx") ? "NDX" : GROUPS[g].underlying;
+}
+
+function $(id){ return document.getElementById(id); }
+function num(v){ var n = parseFloat(v); return isFinite(n) ? n : null; }
+function fmt(n, dec){
+  if(n===null || n===undefined || !isFinite(n)) return "—";
+  return n.toLocaleString("en-US",{minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+function fmtMoney(n){ return n===null||!isFinite(n) ? "—" : "$"+fmt(n,2); }
+function fmtPct(n){ // 小数 -> 带符号百分比
+  if(n===null||!isFinite(n)) return "—";
+  var s = (n*100);
+  return (s>0?"+":"") + s.toFixed(2) + "%";
+}
+function cls(n){ return n>0.0000001 ? "up" : (n<-0.0000001 ? "down" : "flat"); }
+function fmtDelta(n){ // 带符号金额：+$1.09 / -$5.46
+  if(n===null||!isFinite(n)) return "—";
+  return (n>0?"+$":(n<0?"-$":"$")) + fmt(Math.abs(n),2);
+}
+
+/* ---------- 基准价 ---------- */
+function buildBase(){
+  var g = $("baseGrid"); g.innerHTML="";
+  Object.keys(INSTR).forEach(function(sym){
+    var d = document.createElement("div"); d.className="base-item";
+    var top = document.createElement("div"); top.className="sym";
+    top.textContent = sym;
+    var sp = document.createElement("span"); sp.textContent = INSTR[sym].tag; top.appendChild(sp);
+    var row = document.createElement("div"); row.className="row";
+    var em = document.createElement("em"); em.textContent = INSTR[sym].isIndex ? "" : "$";
+    var inp = document.createElement("input");
+    inp.type="number"; inp.inputMode="decimal"; inp.step="any";
+    inp.id="base_"+sym; inp.setAttribute("aria-label", sym+" 基准价");
+    if(DEFAULTS[sym]!==null) inp.value = DEFAULTS[sym];
+    inp.addEventListener("input", function(){
+      base[sym] = num(inp.value);
+      state.baseStale = true; // 手动改价后与行情日期脱钩，联动卡会提示
+      renderAll(false);
+    });
+    row.appendChild(em); row.appendChild(inp);
+    d.appendChild(top); d.appendChild(row);
+    g.appendChild(d);
+  });
+}
+$("resetBase").addEventListener("click", function(){
+  base = Object.assign({}, DEFAULTS);
+  Object.keys(INSTR).forEach(function(sym){
+    var inp = $("base_"+sym);
+    inp.value = DEFAULTS[sym]===null ? "" : DEFAULTS[sym];
+  });
+  state.baseDate = "2026-11-05"; state.baseStale = false;
+  state.history = HISTORY;
+  var fs = $("fetchStatus");
+  fs.className = "fetch-status"; fs.textContent = "已恢复 2026-11-05 收盘价。";
+  renderAll(false);
+});
+
+/* ---------- 按日期抓收盘价（Nasdaq 直连 → 代理转 Nasdaq → 代理转 Yahoo） ---------- */
+var YSYM = { SPX:"^GSPC", SPY:"SPY", SPYU:"SPYU", QQQ:"QQQ", NDX:"^NDX", TQQQ:"TQQQ", SQQQ:"SQQQ" };
+function isoShift(iso, days){
+  var d = new Date(iso+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+days);
+  return d.toISOString().slice(0,10);
+}
+function fetchText(url, ms){
+  return new Promise(function(resolve, reject){
+    var ctl = ("AbortController" in window) ? new AbortController() : null;
+    var timer = setTimeout(function(){ if(ctl) ctl.abort(); reject(new Error("timeout")); }, ms||15000);
+    fetch(url, ctl ? {signal:ctl.signal} : {}).then(function(r){
+      clearTimeout(timer);
+      if(!r.ok){ reject(new Error("HTTP "+r.status)); return; }
+      r.text().then(resolve, reject);
+    }, function(e){ clearTimeout(timer); reject(e); });
+  });
+}
+function nasdaqUrl(sym, fromIso, toIso){
+  return "https://api.nasdaq.com/api/quote/"+sym+"/historical?assetclass=etf&fromdate="+fromIso+"&todate="+toIso+"&limit=9999";
+}
+function yahooUrl(sym, fromIso, toIso){
+  var p1 = Math.floor(new Date(fromIso+"T00:00:00Z").getTime()/1000);
+  var p2 = Math.floor(new Date(isoShift(toIso,2)+"T00:00:00Z").getTime()/1000);
+  return "https://query1.finance.yahoo.com/v8/finance/chart/"+encodeURIComponent(sym)+"?period1="+p1+"&period2="+p2+"&interval=1d";
+}
+function ao(url){ return "https://api.allorigins.win/raw?url="+encodeURIComponent(url); }
+function parseNasdaq(txt, targetIso){
+  var j; try{ j = JSON.parse(txt); }catch(e){ return null; }
+  var rows = j && j.data && j.data.tradesTable && j.data.tradesTable.rows;
+  if(!rows || !rows.length) return null;
+  for(var i=0;i<rows.length;i++){
+    var p = String(rows[i].date||"").split("/"); // MM/DD/YYYY，新→旧排序
+    if(p.length!==3) continue;
+    var iso = p[2]+"-"+("0"+p[0]).slice(-2)+"-"+("0"+p[1]).slice(-2);
+    if(iso > targetIso) continue;
+    var c = parseFloat(String(rows[i].close||"").replace(/[$,]/g,""));
+    if(isFinite(c)) return { price:c, date:iso };
+    return null;
+  }
+  return null;
+}
+function parseYahoo(txt, targetIso){
+  var j; try{ j = JSON.parse(txt); }catch(e){ return null; }
+  var r = j && j.chart && j.chart.result && j.chart.result[0];
+  if(!r || !r.timestamp || !r.indicators || !r.indicators.quote || !r.indicators.quote[0]) return null;
+  var ts = r.timestamp, cl = r.indicators.quote[0].close, best = null;
+  for(var i=0;i<ts.length;i++){
+    if(cl[i]===null || cl[i]===undefined || !isFinite(cl[i])) continue;
+    var iso = new Date(ts[i]*1000).toISOString().slice(0,10); // 日线时间戳为美东零点，UTC 日期即交易日
+    if(iso <= targetIso) best = { price:cl[i], date:iso };
+  }
+  return best;
+}
+function fetchOne(sym, targetIso){
+  var from = isoShift(targetIso, -14);
+  var attempts = [];
+  if(sym !== "SPX" && sym !== "NDX"){
+    var nu = nasdaqUrl(sym, from, targetIso);
+    attempts.push({ src:"Nasdaq", url:nu, parse:parseNasdaq });
+    attempts.push({ src:"Nasdaq", url:ao(nu), parse:parseNasdaq });
+  }
+  attempts.push({ src:"Yahoo", url:ao(yahooUrl(YSYM[sym], from, targetIso)), parse:parseYahoo });
+  var step = function(i){
+    if(i >= attempts.length) return Promise.resolve(null);
+    var a = attempts[i];
+    return fetchText(a.url, 15000).then(function(txt){
+      var r = a.parse(txt, targetIso);
+      if(r) { r.src = a.src; return r; }
+      return step(i+1);
+    }, function(){ return step(i+1); });
+  };
+  return step(0);
+}
+var fetching = false, fetchSeq = 0;
+function parseYahooSeries(txt){ // 整段历史序列 -> [[date, close], ...] 升序
+  var j; try{ j = JSON.parse(txt); }catch(e){ return null; }
+  var r = j && j.chart && j.chart.result && j.chart.result[0];
+  if(!r || !r.timestamp || !r.indicators || !r.indicators.quote || !r.indicators.quote[0]) return null;
+  var ts = r.timestamp, cl = r.indicators.quote[0].close, out = [];
+  for(var i=0;i<ts.length;i++){
+    if(cl[i]===null || cl[i]===undefined || !isFinite(cl[i])) continue;
+    out.push([new Date(ts[i]*1000).toISOString().slice(0,10), Math.round(cl[i]*100)/100]);
+  }
+  return out.length ? out : null;
+}
+function fetchHistorySeries(iso){ // 抓 SPX 与 NDX 同期历史（截至所选日期往前约 200 天），对齐同一交易日
+  var from = isoShift(iso, -200);
+  function one(sym){
+    return fetchText(ao(yahooUrl(YSYM[sym], from, iso)), 20000).then(parseYahooSeries, function(){ return null; });
+  }
+  return Promise.all([one("SPX"), one("NDX")]).then(function(rr){
+    if(!rr[0] || !rr[1]) return null;
+    var m = {};
+    rr[1].forEach(function(p){ m[p[0]] = p[1]; });
+    var out = [];
+    rr[0].forEach(function(p){ if(m[p[0]]!==undefined) out.push([p[0], p[1], m[p[0]]]); });
+    return out.length >= 41 ? out : null;
+  });
+}
+function fetchForDate(){
+  var iso = $("datePick").value;
+  var st = $("fetchStatus"), btn = $("fetchBtn");
+  if(!iso){ st.className="fetch-status err"; st.textContent="请先选一个日期。"; return; }
+  var seq = ++fetchSeq; // 请求序号：旧请求晚返回时不得覆盖新请求的结果
+  fetching = true; btn.disabled = true;
+  st.className = "fetch-status"; st.textContent = "正在抓取 "+iso+" 的收盘价…（依次尝试 Nasdaq 直连与代理通道）";
+  var syms = Object.keys(INSTR);
+  var histP = fetchHistorySeries(iso);
+  Promise.all(syms.map(function(s){ return fetchOne(s, iso); })).then(function(res){
+    if(seq !== fetchSeq) return; // 已有更新的请求，丢弃本次结果
+    fetching = false; btn.disabled = false;
+    var ok = [], fail = [], dates = {}, srcs = {};
+    res.forEach(function(r, i){
+      var s = syms[i];
+      if(r){
+        ok.push(s); dates[r.date] = true; srcs[r.src] = true;
+        base[s] = Math.round(r.price*10000)/10000;
+        $("base_"+s).value = base[s];
+      } else fail.push(s);
+    });
+    if(ok.length){
+      var used = Object.keys(dates).sort().pop();
+      // 六个产品基准价必须同属一个交易日：以实际取到的最近共同日期为准重新对齐说明
+      state.baseDate = used; state.baseStale = false;
+      renderAll(false);
+      var msg = "已更新 "+used+" 收盘价："+ok.join("、")+"（来源 "+Object.keys(srcs).join(" / ")+"）";
+      if(used !== iso) msg += "；所选 "+iso+" 非交易日或当日无数据，已取最近交易日";
+      if(fail.length) msg += "；"+fail.join("、")+" 抓取失败，保留原值，可手动改或重试";
+      st.className = "fetch-status ok"; st.textContent = msg+"。";
+      histP.then(function(h){
+        if(seq !== fetchSeq) return;
+        if(h){ state.history = h; syncBetaChips(); renderLink(); st.textContent = msg+"；SPX / NDX 历史序列已同步，Beta 已按 "+used+" 重算。"; }
+        else { st.textContent = msg+"；历史序列抓取失败，Beta 仍按原基准日计算（见联动卡标注）。"; }
+      });
+    } else {
+      st.className = "fetch-status err";
+      st.textContent = "抓取失败：数据源被跨域策略拦截或代理通道不可用，七个基准价均未变动。可稍后重试，或直接手动修改基准价。";
+    }
+  });
+}
+$("fetchBtn").addEventListener("click", fetchForDate);
+$("datePick").addEventListener("change", fetchForDate);
+(function(){
+  var t = new Date(), pad = function(n){ return ("0"+n).slice(-2); };
+  $("datePick").max = t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate());
+})();
+
+/* ---------- 换算器 ---------- */
+function buildProdChips(){
+  var c = $("prodChips"); c.innerHTML="";
+  GROUPS[state.group].products.forEach(function(sym){
+    var b = document.createElement("button");
+    b.type="button"; b.className="chip"; b.dataset.sym=sym;
+    b.setAttribute("aria-pressed", sym===state.product ? "true":"false");
+    b.innerHTML = sym + '<span class="lev"></span>';
+    b.querySelector(".lev").textContent = INSTR[sym].tag;
+    b.addEventListener("click", function(){
+      state.product = sym;
+      // 若当前输入端是旧产品，输入端回到标的
+      if(state.fromSym !== underlyingOf(state.group) && state.fromSym !== sym){
+        state.fromSym = underlyingOf(state.group);
+      }
+      state.toSym = (state.fromSym === sym) ? underlyingOf(state.group) : sym;
+      syncConverterUI(); renderResults();
+    });
+    c.appendChild(b);
+  });
+}
+$("groupChips").addEventListener("click", function(e){
+  var b = e.target.closest("[data-group]"); if(!b) return;
+  state.group = b.dataset.group;
+  state.product = GROUPS[state.group].products[0];
+  state.fromSym = underlyingOf(state.group);
+  state.toSym = state.product;
+  document.querySelectorAll("#groupChips .chip").forEach(function(x){
+    x.setAttribute("aria-pressed", x.dataset.group===state.group ? "true":"false");
+  });
+  buildProdChips(); syncConverterUI(); renderResults();
+});
+$("swapBtn").addEventListener("click", function(){
+  var t = state.fromSym; state.fromSym = state.toSym; state.toSym = t;
+  syncConverterUI(); renderResults();
+});
+
+/* 纳指口径切换：QQQ 快速 / NDX 精算 */
+function setNdxMode(m){
+  state.ndxMode = m;
+  $("modeQqq").setAttribute("aria-pressed", m==="qqq" ? "true" : "false");
+  $("modeNdx").setAttribute("aria-pressed", m==="ndx" ? "true" : "false");
+  if(state.group==="ndx"){
+    state.fromSym = underlyingOf("ndx");
+    state.toSym = state.product;
+    syncConverterUI(); renderResults();
+  }
+}
+$("modeQqq").addEventListener("click", function(){ setNdxMode("qqq"); });
+$("modeNdx").addEventListener("click", function(){ setNdxMode("ndx"); });
+
+/* 快捷涨跌幅 */
+(function(){
+  var q = $("quickPct");
+  [-5,-3,-2,-1,1,2,3,5].forEach(function(p){
+    var b=document.createElement("button"); b.type="button";
+    b.textContent = (p>0?"+":"")+p+"%";
+    b.addEventListener("click", function(){
+      state.pct = p/100;
+      $("pctInput").value = p;
+      syncPriceFromPct(); renderResults();
+    });
+    q.appendChild(b);
+  });
+})();
+
+/* 统一杠杆定价：正向换算、反向换算、情景表、六标的联动共用同一函数，避免口径漂移。
+   levFactor(L, r) = 1 + L×r；价格 = 基准价 × levFactor。因子 ≤ 0 即理论归零/为负，
+   调用方必须停止线性价格输出并提示风险（价格钳到 0 仅作占位）。 */
+function levFactor(L, r){ return 1 + L * r; }
+function levPrice(b, L, r){
+  if(b===null || r===null) return null;
+  var v = b * levFactor(L, r);
+  return v < 0 ? 0 : v;
+}
+function priceAt(sym, pct){
+  return levPrice(base[sym], INSTR[sym].L, pct);
+}
+function wipedOut(sym, pct){ // 涨跌幅是否已越过该产品的归零线（1 + L×R ≤ 0）
+  if(pct===null) return false;
+  return (1 + INSTR[sym].L * pct) <= 0;
+}
+function syncPriceFromPct(){
+  var inp = $("priceInput");
+  var v = priceAt(state.fromSym, state.pct);
+  inp.value = (v===null) ? "" : (Math.round(v*100)/100);
+}
+function syncConverterUI(){
+  var f = INSTR[state.fromSym], t = INSTR[state.toSym];
+  $("ndxModeRow").hidden = (state.group !== "ndx");
+  $("fromSym").textContent = state.fromSym;
+  $("fromTag").textContent = f.tag;
+  $("fromKind").textContent = f.isIndex ? "目标点位" : "目标价格 · USD";
+  $("fromCur").textContent = f.isIndex ? "" : "$";
+  $("toSym").textContent = state.toSym;
+  $("toTag").textContent = t.tag;
+  document.querySelectorAll("#prodChips .chip").forEach(function(x){
+    x.setAttribute("aria-pressed", x.dataset.sym===state.product ? "true":"false");
+  });
+  syncPriceFromPct();
+}
+$("priceInput").addEventListener("input", function(){
+  var v = num(this.value);
+  var b = base[state.fromSym], L = INSTR[state.fromSym].L;
+  if(v===null || b===null || !b){ state.pct = null; }
+  else { state.pct = (v/b - 1) / L; $("pctInput").value = Math.round(state.pct*100*10000)/10000; }
+  renderResults();
+});
+$("pctInput").addEventListener("input", function(){
+  var v = num(this.value);
+  state.pct = (v===null) ? null : v/100;
+  syncPriceFromPct(); renderResults();
+});
+
+function renderResults(){
+  var list = $("resultList"); list.innerHTML="";
+  // NDX 精算模式下只列 NDX 与两个杠杆产品：QQQ 不由 NDX 直接换算，不列出以免误导
+  var members = (state.group==="ndx" && state.ndxMode==="ndx") ? ["NDX","TQQQ","SQQQ"] : GROUPS[state.group].members;
+  // 输出端排第一，其余成员随后；输入端本身也列出（便于核对）
+  var order = [state.toSym].concat(members.filter(function(s){ return s!==state.toSym; }));
+  order.forEach(function(sym){
+    var b = base[sym], L = INSTR[sym].L;
+    var price = priceAt(sym, state.pct);
+    var dpct = (state.pct===null) ? null : L*state.pct;
+    var dmoney = (price===null||b===null) ? null : price-b;
+    var div = document.createElement("div"); div.className="result";
+    var left = document.createElement("div"); left.className="rsym";
+    left.textContent = sym;
+    var tag=document.createElement("span"); tag.className="tag"; tag.textContent = INSTR[sym].tag;
+    left.appendChild(tag);
+    var right = document.createElement("div"); right.className="rprice";
+    right.textContent = (price===null ? "—" : fmt(price,2));
+    var meta = document.createElement("div"); meta.className="rmeta";
+    if(b===null){
+      meta.innerHTML = '<span>基准价未填，填入后自动计算</span>';
+    } else if(state.pct===null){
+      meta.innerHTML = '<span>基准价 <b>'+fmt(b,2)+'</b></span><span>输入价格或涨跌幅后显示预估</span>';
+    } else if(wipedOut(sym, state.pct)){
+      var w1=document.createElement("span");
+      w1.innerHTML = '涨跌 <b class="'+cls(dpct)+'">'+fmtPct(dpct)+'</b>';
+      var w2=document.createElement("span");
+      w2.textContent = "已越过归零线：真实产品价格不会为负，此跌幅下杠杆当日归零、公式失效";
+      meta.appendChild(w1); meta.appendChild(w2);
+    } else {
+      var isIdx = !!INSTR[sym].isIndex;
+      var s1=document.createElement("span"); s1.textContent="涨跌 ";
+      var bb=document.createElement("b"); bb.className=cls(dpct); bb.textContent=fmtPct(dpct); s1.appendChild(bb);
+      var s2=document.createElement("span"); s2.textContent = isIdx ? "点数 " : "每股 ";
+      var b2=document.createElement("b"); b2.className=cls(dmoney);
+      b2.textContent = isIdx ? ((dmoney>0?"+":"")+fmt(dmoney,2)) : fmtDelta(dmoney);
+      s2.appendChild(b2);
+      var s3=document.createElement("span"); s3.textContent="基准 "+fmt(b,2);
+      meta.appendChild(s1); meta.appendChild(s2); meta.appendChild(s3);
+    }
+    div.appendChild(left); div.appendChild(right); div.appendChild(meta);
+    list.appendChild(div);
+  });
+  var h = $("convHint");
+  if(state.pct===null){
+    h.textContent = "在上方输入「"+state.fromSym+" 的目标价格」或「标的当日涨跌幅」，这里会即时给出全组预估价。";
+  } else {
+    var u = underlyingOf(state.group);
+    h.textContent = "当前假设："+u+" 当日 "+fmtPct(state.pct)+
+      (INSTR[u].isIndex ? "（约 "+(base[u]===null?"—":fmt(base[u]*state.pct,0))+" 点）" : "")+
+      "。结果按倍数公式估算，与实际成交价会有费用和跟踪误差。";
+  }
+}
+
+/* ---------- 情景表 ---------- */
+function buildTable(tblId, groupKey){
+  var tbl = $(tblId);
+  var members = GROUPS[groupKey].members;
+  var head = "<thead><tr><th>标的当日</th>" + members.map(function(s){
+    return "<th>"+s+" · "+INSTR[s].tag+"</th>";
+  }).join("") + "</tr></thead>";
+  var rows = "";
+  [-5,-4,-3,-2,-1,1,2,3,4,5].forEach(function(p){
+    var pct = p/100;
+    rows += "<tr><td class='"+(p>0?"up":"down")+"'><b>"+(p>0?"+":"")+p+"%</b></td>";
+    members.forEach(function(s){
+      var b = base[s], price = priceAt(s, pct);
+      if(b===null || price===null){ rows += "<td>—</td>"; return; }
+      if(wipedOut(s, pct)){ rows += "<td>0.00<span class='d'>归零·公式失效</span></td>"; return; }
+      var dm = price - b;
+      rows += "<td>"+fmt(price,2)+"<span class='d "+cls(dm)+"'>"+(dm>0?"+":"")+fmt(dm,2)+"</span></td>";
+    });
+    rows += "</tr>";
+  });
+  tbl.innerHTML = head + "<tbody>"+rows+"</tbody>";
+}
+
+/* ---------- 反查 ---------- */
+function buildRev(){
+  var sel = $("revSym"); sel.innerHTML="";
+  ["SPYU","SPY","TQQQ","SQQQ"].forEach(function(s){
+    var o=document.createElement("option"); o.value=s;
+    o.textContent = s+"（"+INSTR[s].tag+"）"; sel.appendChild(o);
+  });
+  sel.value = "TQQQ";
+}
+function renderRev(){
+  var sym = $("revSym").value, v = num($("revPct").value), out = $("revOut");
+  if(v===null){ out.innerHTML = '<span class="empty">输入产品涨跌幅后显示</span>'; return; }
+  var L = INSTR[sym].L, u = GROUPS[INSTR[sym].group].underlying;
+  var r = v / L;
+  out.innerHTML = sym+" 当日 <b>"+(v>0?"+":"")+v+"%</b> → "+u+" 当日约 <b>"+(r>0?"+":"")+r.toFixed(2)+"%</b>"+
+    (base[u]!==null ? "（"+u+" 基准 "+fmt(base[u],2)+(INSTR[u].isIndex ? "，约 "+fmt(base[u]*r/100,0)+" 点" : "，约 "+fmtDelta(base[u]*r/100))+"）" : "");
+}
+$("revSym").addEventListener("change", renderRev);
+$("revPct").addEventListener("input", renderRev);
+
+/* ---------- 仓位 ---------- */
+function renderPos(){
+  var amt = num($("posAmt").value), out = $("posOut");
+  if(amt===null){ out.innerHTML = '<span class="empty">输入目标敞口金额</span>'; return; }
+  var parts = [];
+  ["SPY","SPYU","QQQ","TQQQ","SQQQ"].forEach(function(s){
+    var Lraw = INSTR[s].L, L = Math.abs(Lraw);
+    var need = amt / L;
+    var per = base[s]===null ? null : Lraw*base[s]; // 带符号：SQQQ 为负，表示做空敞口
+    var shares = base[s]===null ? null : need/base[s];
+    var perTxt = per===null ? " · 基准价未填"
+      : " · 每股敞口 " + (per<0 ? "−$"+fmt(Math.abs(per),2)+"（做空）" : fmtMoney(per));
+    parts.push("<div style='padding:3px 0'><b>"+s+"</b>（"+INSTR[s].tag+"）投 "+fmtMoney(need)+
+      (shares!==null ? " ≈ "+fmt(shares,2)+" 股" : "")+ perTxt +"</div>");
+  });
+  out.innerHTML = "目标敞口 "+fmtMoney(amt)+"："+parts.join("");
+}
+$("posAmt").addEventListener("input", renderPos);
+
+/* ---------- 六标的联动（加权 Beta 模型） ---------- */
+/* SPX 与 NDX 同交易日收盘序列（Yahoo Finance 日收盘，构建时快照，截至 2026-11-05）。
+   按日期抓取时会联网刷新为所选日期的历史序列。格式：[日期, SPX收盘, NDX收盘] */
+var HISTORY = [["2026-05-01",7230.12,27710.36],["2026-05-04",7200.75,27651.82],["2026-05-05",7259.22,28015.06],["2026-05-06",7365.12,28599.17],["2026-05-07",7337.11,28563.95],["2026-05-08",7398.93,29234.99],["2026-05-11",7412.84,29320.66],["2026-05-12",7400.96,29064.8],["2026-05-13",7444.25,29366.94],["2026-05-14",7501.24,29580.3],["2026-05-15",7408.5,29125.2],["2026-05-18",7403.05,28994.37],["2026-05-19",7353.61,28818.84],["2026-05-20",7432.97,29297.7],["2026-05-21",7445.72,29357.27],["2026-05-22",7473.47,29481.64],["2026-05-26",7519.12,30001.32],["2026-05-27",7520.36,29973.57],["2026-05-28",7563.63,30223.89],["2026-05-29",7580.06,30333.18],["2026-06-01",7599.96,30513.86],["2026-06-02",7609.78,30660.6],["2026-06-03",7553.68,30571.24],["2026-06-04",7584.31,30407.81],["2026-06-05",7383.74,28957.6],["2026-06-08",7405.73,29414.26],["2026-06-09",7386.65,29084.5],["2026-06-10",7266.99,28508.03],["2026-06-11",7394.3,29446.18],["2026-06-12",7431.46,29635.95],["2026-06-15",7554.29,30543.92],["2026-06-16",7511.35,29968.13],["2026-06-17",7420.1,29670.95],["2026-06-18",7500.58,30406.19],["2026-06-22",7472.79,30347.08],["2026-06-23",7365.46,29347.27],["2026-06-24",7358.22,29220.06],["2026-06-25",7357.49,29440.32],["2026-06-26",7354.02,29118.24],["2026-06-29",7440.43,29774.75],["2026-06-30",7499.36,30276.35],["2026-07-01",7483.23,29809.13],["2026-07-02",7483.24,29329.21],["2026-07-06",7537.43,29697.87],["2026-07-07",7503.85,29173.02],["2026-07-08",7482.71,29252.56],["2026-07-09",7543.64,29727.1],["2026-07-10",7575.39,29825.11],["2026-07-13",7515.34,29264.1],["2026-07-14",7543.59,29586.29],["2026-07-15",7572.4,29502.6],["2026-07-16",7533.77,29025.77],["2026-07-17",7457.69,28592.66],["2026-07-20",7443.28,28604.23],["2026-07-21",7509.2,29155.18],["2026-07-22",7498.96,28998.1],["2026-07-23",7408.3,28454.81],["2026-07-24",7411.98,28128.34],["2026-07-27",7413.18,28039.21],["2026-07-28",7428.78,27763.13],["2026-07-29",7316.15,27192.31],["2026-07-30",7437.63,28106.35],["2026-07-31",7489.72,28274.2],["2026-08-03",7600.5,28776.8],["2026-08-04",7736.52,29733.16],["2026-08-05",7723.55,29487.79],["2026-08-06",7709.96,29373.33],["2026-08-07",7757.64,29722.3],["2026-08-10",7753.11,29621.8],["2026-08-11",7728.2,29525.48],["2026-08-12",7748.5,29742.6],["2026-08-13",7798.99,30084.5],["2026-08-14",7785.76,30046.14],["2026-08-17",7745.06,29995.38],["2026-08-18",7691.76,29490.96],["2026-08-19",7707.98,29426.02],["2026-08-20",7641.16,29213.16],["2026-08-21",7674.37,29308.86],["2026-08-24",7652.86,29023.18],["2026-08-25",7677.28,29209.23],["2026-08-26",7675.7,29224.52],["2026-08-27",7730.99,29641.56],["2026-08-28",7711.76,29433.43],["2026-08-31",7686.14,29456.97],["2026-09-01",7631.47,29077.22],["2026-09-02",7666.6,29143.33],["2026-09-03",7747.71,29482.32],["2026-09-04",7718.6,29544.15],["2026-09-08",7673.52,29507.7],["2026-09-09",7636.36,29421.55],["2026-09-10",7591.7,29103.51],["2026-09-11",7656.98,29368.44],["2026-09-14",7619.98,29127.16],["2026-09-15",7585.73,28937.84],["2026-09-16",7551.81,28945.06],["2026-09-17",7637.76,29446.98],["2026-09-18",7650.5,29644.17],["2026-09-21",7764.7,30482.35],["2026-09-22",7764.64,30732.4],["2026-09-23",7706.03,30470.29],["2026-09-24",7704.13,30478.86],["2026-09-25",7743.41,30608.13],["2026-09-28",7683.69,30276.81],["2026-09-29",7670.84,30339.33],["2026-09-30",7651.54,30408.5],["2026-10-01",7666.45,30501.56],["2026-10-02",7722.72,30807.93],["2026-10-05",7773.95,31076.44],["2026-10-06",7818.93,31224.47],["2026-10-07",7801.77,31160.08],["2026-10-08",7765.36,30725.81],["2026-10-09",7811.54,30883.15],["2026-10-12",7807.24,30664.7],["2026-10-13",7805.45,30569.48],["2026-10-14",7718.94,29950.82],["2026-10-15",7744.06,29935.6],["2026-10-16",7659.44,29187.55],["2026-10-19",7690.73,29529.35],["2026-10-20",7712.57,29490.28],["2026-10-21",7757.17,29822.52],["2026-10-22",7663.43,28958.69],["2026-10-23",7623.68,28957.53],["2026-10-26",7676.77,29273.4],["2026-10-27",7722.6,29651.44],["2026-10-28",7743.98,29813.16],["2026-10-29",7720.39,29402.51],["2026-10-30",7580.07,28384.85],["2026-11-02",7541.4,27989.82],["2026-11-03",7568.92,28180.26],["2026-11-04",7688.62,28437.17],["2026-11-05",7353.73,26629.81]];
+state.history = HISTORY;
+/* 历史加权 Beta：history = [[日期, SPX收盘, NDX收盘], ...]（同交易日对齐、升序）。
+   取最近 lookback 组日收益率，权重按 0.97 指数衰减（最近一组权重最高）。
+   Beta = 加权协方差(NDX收益, SPX收益) / SPX收益加权方差（带截距的加权回归斜率）。
+   样本不足（少于 min(40, lookback) 组）或方差为零时返回 ok:false，调用方禁止输出预测。 */
+function calculateWeightedBeta(history, lookback){
+  var DECAY = 0.97, rets = [];
+  for(var i=1;i<history.length;i++){
+    var p0 = history[i-1], p1 = history[i];
+    if(!(p0[1]>0) || !(p0[2]>0)) continue;
+    rets.push({ d:p1[0], x:p1[1]/p0[1]-1, y:p1[2]/p0[2]-1 });
+  }
+  rets = rets.slice(-lookback);
+  var n = rets.length, need = Math.min(40, lookback);
+  if(n < need) return { ok:false, reason:"样本不足：窗口内只有 "+n+" 组日收益（需 ≥ "+need+" 组）", n:n };
+  var ws = [], sw = 0, mx = 0, my = 0, i, w;
+  for(i=0;i<n;i++){ w = Math.pow(DECAY, n-1-i); ws.push(w); sw += w; mx += w*rets[i].x; my += w*rets[i].y; }
+  mx /= sw; my /= sw;
+  var cov = 0, varx = 0, vary = 0;
+  for(i=0;i<n;i++){ var dx = rets[i].x-mx, dy = rets[i].y-my; cov += ws[i]*dx*dy; varx += ws[i]*dx*dx; vary += ws[i]*dy*dy; }
+  if(!(varx > 0)) return { ok:false, reason:"SPX 收益方差为零，无法回归", n:n };
+  var beta = cov/varx, ssRes = 0;
+  for(i=0;i<n;i++){ var e = rets[i].y - (my + beta*(rets[i].x-mx)); ssRes += ws[i]*e*e; }
+  return {
+    ok:true, beta:beta, n:n,
+    start:rets[0].d, end:rets[n-1].d,
+    r2: vary>0 ? Math.max(0, 1 - ssRes/vary) : 0,
+    sigma: Math.sqrt(ssRes/sw),
+    corr: (varx>0 && vary>0) ? cov/Math.sqrt(varx*vary) : 0
+  };
+}
+function currentBeta(){
+  return calculateWeightedBeta(state.history, state.linkWin==="d20" ? 20 : 60);
+}
+/* 统一联动计算：给定 SPX 目标与 Beta，一次算出六标的（正向/联动/情景共用 levPrice）。
+   任一杠杆因子 ≤ 0 时该标的 wiped=true，界面停止线性价格输出、只给风险提示。 */
+function computeLinked(targetSPX, baseObj, beta){
+  var r = targetSPX/baseObj.SPX - 1, rNDX = beta * r;
+  function one(sym, rr){
+    var L = INSTR[sym].L, f = levFactor(L, rr), b = baseObj[sym];
+    return { sym:sym, L:L, base:b, factor:f, wiped: f <= 0,
+             price: (b===null || f<=0) ? null : levPrice(b, L, rr), pct: L*rr };
+  }
+  return { r:r, rNDX:rNDX, beta:beta, rows:{
+    SPY: one("SPY", r), SPYU: one("SPYU", r),
+    QQQ: one("QQQ", rNDX), TQQQ: one("TQQQ", rNDX), SQQQ: one("SQQQ", rNDX)
+  }};
+}
+function syncBetaChips(){
+  $("beta20").setAttribute("aria-pressed", state.linkWin==="d20" ? "true" : "false");
+  $("beta60").setAttribute("aria-pressed", state.linkWin==="d60" ? "true" : "false");
+  var B = currentBeta();
+  $("betaInfo").textContent = B.ok
+    ? "β = "+B.beta.toFixed(3)+" · 样本 "+B.n+" 组 · "+B.start+" → "+B.end+" · R² = "+B.r2.toFixed(2)+" · 残差 σ = "+(B.sigma*100).toFixed(2)+"%（加权回归，衰减 0.97；来源 Yahoo Finance）"
+    : "β 不可用："+B.reason;
+  renderFresh();
+}
+function renderFresh(){
+  var el = $("linkFresh"); if(!el) return;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var bd = new Date(state.baseDate+"T00:00:00");
+  var ageDays = isFinite(bd.getTime()) ? Math.round((today - bd)/86400000) : null;
+  var msg = "基准日 "+state.baseDate+"（最近一个完整交易日收盘）· 计算方法：单日倍数公式 + SPX→NDX 加权 Beta 联动 · 估算价不是实时报价";
+  if(state.baseStale) msg += " · ⚠ 基准价已被手动修改、未与该日行情核对";
+  else if(ageDays !== null && ageDays > 7) msg += " · ⚠ 基准价已过期（距今 "+ageDays+" 天），结果仅作情景估算，请先按日期抓取最新收盘价";
+  el.className = "fetch-status" + ((state.baseStale || (ageDays !== null && ageDays > 7)) ? " err" : "");
+  el.textContent = msg+"。";
+}
+$("beta20").addEventListener("click", function(){ state.linkWin="d20"; syncBetaChips(); renderLink(); });
+$("beta60").addEventListener("click", function(){ state.linkWin="d60"; syncBetaChips(); renderLink(); });
+$("linkSpx").addEventListener("input", renderLink);
+function renderLink(){
+  renderFresh();
+  var list = $("linkList"); list.innerHTML = "";
+  var B = currentBeta();
+  var target = num($("linkSpx").value), bs = base.SPX;
+  function row(sym, kind, price, spans){
+    var div = document.createElement("div"); div.className = "result";
+    var left = document.createElement("div"); left.className = "rsym"; left.textContent = sym;
+    var tag = document.createElement("span"); tag.className = "tag"; tag.textContent = kind; left.appendChild(tag);
+    var right = document.createElement("div"); right.className = "rprice";
+    right.textContent = (price===null ? "—" : fmt(price,2));
+    var meta = document.createElement("div"); meta.className = "rmeta";
+    spans.forEach(function(s){
+      var sp = document.createElement("span"); sp.innerHTML = s; meta.appendChild(sp);
+    });
+    div.appendChild(left); div.appendChild(right); div.appendChild(meta);
+    list.appendChild(div);
+  }
+  if(target===null || bs===null || !bs){
+    $("linkRet").textContent = "";
+    var p = document.createElement("p"); p.className = "hint";
+    p.textContent = "输入 SPX 目标点位后，这里同时给出六个标的的预估价。";
+    list.appendChild(p); return;
+  }
+  if(!B.ok){ // 样本不足或方差为零：禁止输出联动预测，只保留输入行与原因
+    $("linkRet").textContent = "";
+    row("SPX", "目标输入", target, ["基准 "+fmt(bs,2)]);
+    var w = document.createElement("p"); w.className = "hint";
+    w.textContent = "⚠ Beta 不可用（"+B.reason+"），已停止输出 QQQ / TQQQ / SQQQ 联动预测；SPY / SPYU 可在上方换算器按公式单独计算。";
+    list.appendChild(w); return;
+  }
+  var out = computeLinked(target, base, B.beta);
+  var r = out.r, rq = out.rNDX;
+  $("linkRet").textContent = "即 SPX 当日 "+fmtPct(r)+"，加权 Beta（β="+B.beta.toFixed(3)+"）估算 NDX 当日 "+fmtPct(rq);
+  row("SPX", "目标输入", target, ["基准 "+fmt(bs,2), "涨跌 <b class='"+cls(r)+"'>"+fmtPct(r)+"</b>", "基准日 "+state.baseDate]);
+  ["SPY","SPYU"].forEach(function(sym){
+    var o = out.rows[sym];
+    if(o.base===null){ row(sym, "公式换算", null, ["基准价未填"]); return; }
+    if(o.wiped){ row(sym, "公式换算", null, ["理论涨幅因子 "+o.factor.toFixed(2)+" ≤ 0", "⚠ 杠杆公式已理论归零/为负，停止线性价格输出；真实产品当日涨跌以 −100% 为限，且有每日重置与发行人赎回风险"]); return; }
+    row(sym, "公式换算", o.price, [
+      "涨跌 <b class='"+cls(o.pct)+"'>"+fmtPct(o.pct)+"</b>",
+      "每股 <b class='"+cls(o.price-o.base)+"'>"+fmtDelta(o.price-o.base)+"</b>",
+      "基准 "+fmt(o.base,2)+(sym==="SPYU" ? " · 以 SPX 代理 SPXT" : "")
+    ]);
+  });
+  ["QQQ","TQQQ","SQQQ"].forEach(function(sym){
+    var o = out.rows[sym];
+    if(o.base===null){ row(sym, "模型估算", null, ["基准价未填"]); return; }
+    if(o.wiped){ row(sym, "模型估算", null, ["理论涨幅因子 "+o.factor.toFixed(2)+" ≤ 0", "⚠ 杠杆公式已理论归零/为负，停止线性价格输出；真实产品当日涨跌以 −100% 为限"]); return; }
+    var lo = levPrice(o.base, o.L, rq - B.sigma), hi = levPrice(o.base, o.L, rq + B.sigma);
+    var band = fmt(Math.min(lo,hi),2)+" – "+fmt(Math.max(lo,hi),2);
+    row(sym, "模型估算", o.price, [
+      "估算涨跌 <b class='"+cls(o.pct)+"'>"+fmtPct(o.pct)+"</b>",
+      "±1σ 区间 "+band,
+      "基准 "+fmt(o.base,2)+" · 以 NDX 涨跌为代理"
+    ]);
+  });
+  if(Math.abs(r) >= 0.10){
+    var w2 = document.createElement("p"); w2.className = "hint";
+    w2.textContent = "⚠ 极端情景警告：SPX 单日 "+fmtPct(r)+" 已属极端行情，Beta 相关性与杠杆每日重置机制下实际价格可能显著偏离线性估算，杠杆产品存在当日大幅归零风险。";
+    list.appendChild(w2);
+  }
+}
+
+function renderAll(rebuild){
+  if(rebuild){ buildProdChips(); syncConverterUI(); }
+  renderResults();
+  buildTable("tblSpx","spx");
+  buildTable("tblNdx","ndx");
+  renderRev(); renderPos(); renderLink();
+}
+
+/* init */
+buildBase(); buildRev(); buildProdChips(); syncConverterUI();
+syncBetaChips(); $("linkSpx").value = DEFAULTS.SPX;
+state.pct = 0.02; $("pctInput").value = 2; syncPriceFromPct();
+renderAll(false);
+})();
+</script>
+</body>
+</html>
